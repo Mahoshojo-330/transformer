@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A Git-backed explanation of this tiny transformer project: what is built, how attention works, and what to do next.">
+  <title>Tiny transformer — where we left off</title>
+  <style>
+    :root { color-scheme: light; --paper: #f7f6f2; --ink: #202c39; --muted: #596573; --blue: #214fcd; --pale: #e9eefc; --line: #d8dddF; --white: #fff; --green: #256947; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 90px; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    a { color: var(--blue); text-underline-offset: 4px; }
+    button, select, input { font: inherit; }
+    button, select { cursor: pointer; }
+    button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 4px; }
+    code, pre, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    code { font-size: .87em; overflow-wrap: anywhere; }
+    p { margin: 0 0 16px; }
+    h1, h2, h3 { line-height: 1.13; letter-spacing: -.035em; }
+    h2 { font-size: clamp(28px, 4vw, 40px); margin: 0 0 22px; }
+    h3 { font-size: 22px; margin: 0 0 15px; }
+    .wrap { width: min(1120px, calc(100% - 64px)); margin: 0 auto; }
+    .skip { position: absolute; top: -100px; left: 20px; z-index: 5; padding: 12px; background: white; }
+    .skip:focus { top: 10px; }
+    header { background: var(--paper); border-bottom: 1px solid var(--line); }
+    .masthead { min-height: 74px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; }
+    .brand-mark { display: grid; grid-template-columns: repeat(2, 7px); gap: 3px; }
+    .brand-mark i { width: 7px; height: 7px; background: var(--blue); }
+    .brand-mark i:last-child { opacity: .35; }
+    .date { color: var(--muted); font-size: 12px; }
+    nav { display: flex; flex-wrap: wrap; gap: 24px; padding: 16px 0; }
+    nav a { font-size: 13px; text-decoration: none; color: var(--muted); }
+    nav a:hover { color: var(--blue); }
+    .hero { padding: 62px 0 52px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 55px; align-items: center; }
+    .eyebrow { color: var(--blue); text-transform: uppercase; letter-spacing: .14em; font-size: 11px; font-weight: 700; margin-bottom: 18px; }
+    h1 { font-size: clamp(42px, 6vw, 70px); margin: 0 0 25px; }
+    h1 span { color: var(--blue); }
+    .lede { color: var(--muted); font-size: 18px; max-width: 580px; }
+    .status { margin-top: 24px; display: inline-flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 600; }
+    .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+    .diagram { background: var(--blue); color: white; padding: 29px; border-radius: 4px; }
+    .diagram .eyebrow { color: #d9e3ff; }
+    .diagram-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 0; border-bottom: 1px solid #ffffff40; }
+    .diagram-row span { font-size: 13px; }
+    .diagram-row strong { font-weight: 500; font-size: 18px; }
+    .diagram-row:last-of-type { border: 0; }
+    .diagram-note { margin: 15px 0 0; border: 1px dashed #ffffff80; padding: 13px; font-size: 13px; }
+    .diagram-note b { display: block; color: white; font-weight: 600; }
+    section { padding: 48px 0; border-top: 1px solid var(--line); }
+    .section-top { display: flex; gap: 25px; align-items: baseline; }
+    .section-no { font: 12px "SFMono-Regular", Consolas, monospace; color: var(--blue); flex-shrink: 0; }
+    .section-intro { color: var(--muted); max-width: 720px; margin-bottom: 28px; }
+    .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+    .track { border: 1px solid var(--line); background: var(--white); padding: 27px; border-radius: 4px; }
+    .track.active { border-top: 3px solid var(--blue); padding-top: 25px; }
+    .track-label { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; font-size: 12px; }
+    .badge { background: var(--pale); color: var(--blue); padding: 2px 9px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+    .badge.neutral { color: var(--muted); background: #f0f1f2; }
+    .track p { color: var(--muted); }
+    .track .finish { padding-top: 18px; border-top: 1px solid var(--line); font-size: 14px; margin: 20px 0 0; color: var(--ink); }
+    .timeline { display: grid; grid-template-columns: 170px 1fr; column-gap: 28px; }
+    .when { padding: 22px 0; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); }
+    .when code { display: block; color: var(--blue); margin-top: 5px; }
+    .event { padding: 22px 0; border-top: 1px solid var(--line); }
+    .event h3 { font-size: 20px; margin: 0 0 10px; }
+    .event p { color: var(--muted); margin: 0; max-width: 780px; }
+    .note { border-left: 3px solid var(--blue); background: var(--pale); padding: 18px 22px; margin-top: 22px; font-size: 14px; }
+    .note p:last-child { margin-bottom: 0; }
+    .pipeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 28px 0 20px; }
+    .operation { border: 1px solid var(--line); padding: 15px; background: white; min-height: 108px; border-radius: 3px; }
+    .operation.done { background: var(--pale); border-color: #c6d2f5; }
+    .operation.next { border: 2px solid var(--blue); padding: 14px; }
+    .operation small { display: block; color: var(--muted); font-size: 11px; margin-bottom: 9px; }
+    .operation.done small, .operation.next small { color: var(--blue); }
+    .operation strong { font-size: 14px; font-weight: 600; line-height: 1.35; display: block; }
+    .legend { display: flex; gap: 20px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .swatch { width: 12px; height: 12px; border: 1px solid var(--line); background: white; }
+    .swatch.done { background: var(--pale); border-color: #c6d2f5; }
+    .swatch.next { border: 2px solid var(--blue); }
+    .controls { display: flex; gap: 22px; flex-wrap: wrap; align-items: center; padding: 19px 22px; background: #eeefeb; border: 1px solid var(--line); border-bottom: 0; border-radius: 4px 4px 0 0; }
+    .controls label { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; }
+    .controls select { background: white; border: 1px solid #aeb9c5; border-radius: 3px; padding: 7px 10px; color: var(--ink); max-width: 100%; }
+    .controls input { accent-color: var(--blue); width: 16px; height: 16px; }
+    .explorer { display: grid; grid-template-columns: 220px minmax(0, 1fr); background: white; border: 1px solid var(--line); border-radius: 0 0 4px 4px; overflow: hidden; }
+    .steps { padding: 15px; border-right: 1px solid var(--line); background: #fafaf8; display: flex; flex-direction: column; gap: 7px; }
+    .step { text-align: left; border: 0; background: transparent; color: var(--muted); border-radius: 3px; padding: 12px; font-size: 13px; display: flex; gap: 12px; align-items: center; }
+    .step .num { font-size: 11px; opacity: .8; }
+    .step:hover { background: #eeefeb; }
+    .step[aria-pressed="true"] { background: var(--blue); color: white; }
+    .step .latest { margin-left: auto; font-size: 10px; }
+    .result { padding: 28px; min-width: 0; }
+    .result-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; align-items: baseline; }
+    .result-heading h3 { font-size: 27px; margin-bottom: 18px; }
+    #step-copy { color: var(--muted); font-size: 15px; }
+    .formula { font-size: 13px; padding: 14px 17px; background: #f1f4fa; border-radius: 3px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 22px 0; }
+    .matrices { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
+    .matrix { min-width: 0; }
+    .matrix table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .matrix caption { text-align: left; font-size: 12px; font-weight: 650; padding-bottom: 10px; color: var(--blue); }
+    .matrix td, .matrix th { text-align: right; padding: 10px 6px; border-bottom: 1px solid var(--line); }
+    .matrix th { font-size: 11px; font-weight: 500; color: var(--muted); }
+    .matrix th:first-child { text-align: left; }
+    .matrix td { font-family: "SFMono-Regular", Consolas, monospace; white-space: nowrap; }
+    .matrix td.masked { color: var(--muted); font-family: inherit; font-size: 11px; }
+    #step-example { padding: 17px 0 0; margin: 12px 0 0; border-top: 1px solid var(--line); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .trace-foot { color: var(--muted); font-size: 12px; margin: 14px 0 0; }
+    .insights { margin-top: 26px; gap: 30px; }
+    .insights h3 { font-size: 19px; }
+    .insights p { font-size: 14px; color: var(--muted); }
+    details { margin-top: 16px; padding: 15px 20px; border: 1px solid var(--line); background: white; border-radius: 3px; }
+    summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+    details pre { margin-bottom: 0; white-space: pre-wrap; font-size: 12px; }
+    .next-card { background: var(--ink); color: white; padding: 32px; border-radius: 4px; }
+    .next-card .eyebrow { color: #b9ccff; }
+    .next-card p { color: #d9e0e7; }
+    .next-card .formula { background: #ffffff12; color: white; }
+    .next-card .worked { font-size: 14px; margin: 0; }
+    .remaining { padding: 4px 0 0 10px; }
+    .remaining ol { margin: 0; padding-left: 22px; }
+    .remaining li { padding: 0 0 17px 8px; font-size: 14px; }
+    .remaining li::marker { color: var(--blue); }
+    .remaining li b { display: block; margin-bottom: 4px; font-weight: 600; }
+    .remaining li span { color: var(--muted); }
+    .commands { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .command { border: 1px solid var(--line); background: white; padding: 19px; border-radius: 3px; min-width: 0; }
+    .command b { display: block; font-size: 13px; margin-bottom: 12px; font-weight: 600; }
+    .command code { display: block; white-space: pre-wrap; font-size: 12px; }
+    .sources { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 32px; }
+    .source { padding: 15px 0; border-top: 1px solid var(--line); font-size: 14px; }
+    .source p { font-size: 13px; color: var(--muted); margin: 5px 0 0; }
+    footer { border-top: 1px solid var(--line); padding: 25px 0 35px; font-size: 12px; color: var(--muted); }
+    footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+    @media (max-width: 800px) {
+      .hero { grid-template-columns: 1fr; gap: 25px; padding-top: 36px; }
+      .diagram { max-width: 560px; }
+      .pipeline { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .two { grid-template-columns: 1fr; }
+      .remaining { padding: 0; }
+      .explorer { grid-template-columns: 1fr; }
+      .steps { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); gap: 5px; }
+      .step { padding: 9px; }
+      .step .latest { display: none; }
+      .timeline { grid-template-columns: 125px 1fr; gap: 20px; }
+    }
+    @media (max-width: 520px) {
+      .wrap { width: calc(100% - 32px); }
+      .masthead { align-items: flex-start; padding: 20px 0; min-height: auto; }
+      .brand { font-size: 10px; gap: 8px; }
+      .date { font-size: 10px; }
+      nav { gap: 13px; }
+      nav a { font-size: 12px; }
+      section { padding: 35px 0; }
+      .section-top { gap: 12px; }
+      .pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .timeline { grid-template-columns: 1fr; gap: 0; }
+      .when { padding: 18px 0 5px; }
+      .when code { display: inline; margin-left: 8px; }
+      .event { border: 0; padding-top: 8px; }
+      .controls { gap: 12px 17px; padding: 15px; }
+      .result { padding: 20px 15px; }
+      .result-heading h3 { font-size: 23px; }
+      .matrices { grid-template-columns: 1fr; }
+      .sources, .commands { grid-template-columns: 1fr; }
+      .next-card { padding: 24px; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    @media print {
+      body { background: white; font-size: 12px; }
+      .wrap { width: 100%; }
+      nav, .skip, .controls, .steps { display: none; }
+      .hero { padding: 20px 0; }
+      h1 { font-size: 38px; }
+      section { padding: 25px 0; }
+      .explorer { display: block; }
+      .diagram, .next-card { color: var(--ink); background: #f0f2f5; }
+      .diagram .eyebrow, .diagram-note b, .next-card .eyebrow, .next-card p { color: var(--ink); }
+      .next-card .formula { color: var(--ink); }
+      .operation, .track, .next-card, .command { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to explanation</a>
+  <header>
+    <div class="wrap masthead">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Tiny transformer / project notes</div>
+      <div class="date">Snapshot · 17 September 2026</div>
+    </div>
+  </header>
+  <main id="main" class="wrap">
+    <nav aria-label="Page sections">
+      <a href="#goal">The goal</a><a href="#history">Git history</a><a href="#built">What is built</a><a href="#walkthrough">Try the calculation</a><a href="#next">What comes next</a>
+    </nav>
+    <div class="hero">
+      <div>
+        <div class="eyebrow">A learning project, in two parts</div>
+        <h1>Where we are.<br><span>What comes next.</span></h1>
+        <p class="lede">We have a working attention calculation. We paused just after adding its output projection and first skip connection. Next, we turn that into a complete transformer block.</p>
+        <div class="status">6 existing tests pass · trainable example not started</div>
+      </div>
+      <div class="diagram" aria-label="The current model ends after adding the original input back to the projected attention output.">
+        <div class="eyebrow">The current stopping point</div>
+        <div class="diagram-row"><strong>Words + positions</strong><span>input X</span></div>
+        <div class="diagram-row"><strong>↓ One attention head</strong><span>mix values</span></div>
+        <div class="diagram-row"><strong>↓ Output projection</strong><span>multiply by W_O</span></div>
+        <div class="diagram-row"><strong>↓ First skip connection</strong><span>add X back</span></div>
+        <p class="diagram-note"><b>We are here.</b>Layer normalization is the next operation to add.</p>
+      </div>
+    </div>
+
+    <section id="goal">
+      <div class="section-top"><span class="section-no">01 /</span><h2>Two examples. Two things to learn.</h2></div>
+      <p class="section-intro">The current roadmap keeps the calculation example and the training example separate. Finish the calculation first, then use existing PyTorch layers to show a small model learning.</p>
+      <div class="two">
+        <article class="track active">
+          <div class="track-label"><code>demo/</code><span class="badge">Build this first</span></div>
+          <h3>A transformer by hand</h3>
+          <p>Pick tiny, fixed matrices. Follow two words through one transformer block and into next-token probabilities. Every intermediate value should be visible and checkable with a calculator.</p>
+          <p class="finish"><b>Done when:</b> a full forward pass is written out, and tests agree with the hand calculation.</p>
+        </article>
+        <article class="track">
+          <div class="track-label"><code>trainable/</code><span class="badge neutral">Not started</span></div>
+          <h3>A transformer that learns</h3>
+          <p>Connect PyTorch embeddings, one <code>nn.TransformerEncoderLayer</code>, and a vocabulary output layer. Apply a causal mask and train on a tiny piece of text.</p>
+          <p class="finish"><b>Done when:</b> one command shows the loss decreasing, and a test proves an optimizer step changes a parameter.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="history">
+      <div class="section-top"><span class="section-no">02 /</span><h2>What Git actually tells us.</h2></div>
+      <p class="section-intro">There are two commits. Some of the latest progress exists only in the working files, so the last commit alone gives an incomplete picture.</p>
+      <div class="timeline">
+        <div class="when">4 September 2026<code>d0bf280</code></div>
+        <article class="event"><h3>The repository begins.</h3><p>The initial commit contains the MIT license. No model code yet.</p></article>
+        <div class="when">10 September 2026<code>a3a1ec5 · HEAD</code></div>
+        <article class="event"><h3>The attention example lands.</h3><p>Fixed word and position embeddings, Q/K/V projections, scaled scores, optional causal masking, softmax, and value mixing. A notebook shows the numbers. Four tests cover attention weights, word order, positions, and masking.</p></article>
+        <div class="when">Current working files<code>uncommitted</code></div>
+        <article class="event"><h3>Output projection + first skip connection.</h3><p>The code now applies <code>W_O</code>, then adds the original input. Two additional tests cover these operations. The notebook and README explain them. The three Markdown documents have moved from <code>demo/</code> to the repository root and have been revised; the roadmap now defines the two small exercises above.</p></article>
+      </div>
+      <div class="note"><p><b>Which plan should we follow?</b> The current <a href="PROJECT_LEARNING_ROADMAP.md">roadmap</a>. The committed plan was broader: generation, GPU comparisons, and KV caching. The revised working plan removes those from scope.</p><p><b>One stale detail:</b> the current handoff still lists the output projection and first skip connection as missing. Both are present in the code. Git cannot tell us when these uncommitted edits were made.</p></div>
+      <details><summary>Git commands used to reconstruct this</summary><pre>git log --all --date=short --format='%h %ad %s' --stat
+git show a3a1ec5:demo/tiny_transformer.py
+git show a3a1ec5:demo/PROJECT_LEARNING_ROADMAP.md
+git diff -- demo/tiny_transformer.py demo/test_tiny_transformer.py
+git status --short --branch</pre></details>
+    </section>
+
+    <section id="built">
+      <div class="section-top"><span class="section-no">03 /</span><h2>Attention is built. The block is unfinished.</h2></div>
+      <p class="section-intro">The model currently returns two-number vectors after its first skip connection. It does not yet return next-token probabilities. Here is the intended forward pass, in code order.</p>
+      <div class="pipeline" aria-label="Eight implemented operations followed by four remaining stages">
+        <div class="operation done"><small>01 · Implemented</small><strong>Word + position embeddings</strong></div>
+        <div class="operation done"><small>02 · Implemented</small><strong>Query, key, value projections</strong></div>
+        <div class="operation done"><small>03 · Implemented</small><strong>Scaled query–key scores</strong></div>
+        <div class="operation done"><small>04 · Implemented</small><strong>Optional causal mask</strong></div>
+        <div class="operation done"><small>05 · Implemented</small><strong>Softmax attention weights</strong></div>
+        <div class="operation done"><small>06 · Implemented</small><strong>Weighted value mixing</strong></div>
+        <div class="operation done"><small>07 · Implemented, uncommitted</small><strong>Attention output projection</strong></div>
+        <div class="operation done"><small>08 · Implemented, uncommitted</small><strong>First skip connection</strong></div>
+        <div class="operation next"><small>09 · Next to implement</small><strong>First layer normalization</strong></div>
+        <div class="operation"><small>10 · Planned</small><strong>Small feed-forward network</strong></div>
+        <div class="operation"><small>11 · Planned</small><strong>Second skip + normalization</strong></div>
+        <div class="operation"><small>12 · Planned</small><strong>Vocabulary scores + probabilities</strong></div>
+      </div>
+      <div class="legend"><span><i class="swatch done" aria-hidden="true"></i>Built</span><span><i class="swatch next" aria-hidden="true"></i>Next</span><span><i class="swatch" aria-hidden="true"></i>Remaining</span></div>
+    </section>
+
+    <section id="walkthrough">
+      <div class="section-top"><span class="section-no">04 /</span><h2>Follow the actual numbers.</h2></div>
+      <p class="section-intro">These eight combinations were run through the current Python model. Choose an operation to inspect its result. Toggle positions or the causal mask, or swap the words, to see what changes.</p>
+      <div class="controls" aria-label="Calculation settings">
+        <label for="order">Words <select id="order"><option value="river bank">river → bank</option><option value="bank river">bank → river</option></select></label>
+        <label><input id="positions" type="checkbox" checked> Add positions</label>
+        <label><input id="causal" type="checkbox" checked> Hide future tokens</label>
+      </div>
+      <div class="explorer">
+        <div class="steps" role="group" aria-label="Forward pass operation">
+          <button class="step" type="button" data-step="0" aria-pressed="false"><span class="num">01</span>Input embeddings</button>
+          <button class="step" type="button" data-step="1" aria-pressed="false"><span class="num">02</span>Queries, keys, values</button>
+          <button class="step" type="button" data-step="2" aria-pressed="false"><span class="num">03</span>Scores + mask</button>
+          <button class="step" type="button" data-step="3" aria-pressed="false"><span class="num">04</span>Attention weights</button>
+          <button class="step" type="button" data-step="4" aria-pressed="false"><span class="num">05</span>Mix the values</button>
+          <button class="step" type="button" data-step="5" aria-pressed="false"><span class="num">06</span>Output projection</button>
+          <button class="step" type="button" data-step="6" aria-pressed="true"><span class="num">07</span>Skip connection<span class="latest">← HERE</span></button>
+        </div>
+        <div class="result" role="region" aria-label="Selected calculation" aria-live="polite" aria-atomic="true">
+          <div class="result-heading"><h3 id="step-title">Add the original input back.</h3><span id="step-symbol" class="badge">X + attention @ W_O</span></div>
+          <p id="step-copy">The skip connection preserves a direct path from the original input. Attention adds information to that input instead of replacing it. This is the last operation currently implemented.</p>
+          <pre class="formula" id="step-formula">residual = X + projected_attention</pre>
+          <div id="matrices" class="matrices">
+            <div class="matrix"><table><caption>After first skip connection</caption><thead><tr><th scope="col">Token</th><th scope="col">dim 1</th><th scope="col">dim 2</th></tr></thead><tbody><tr><th scope="row">river · 0</th><td>2</td><td>0</td></tr><tr><th scope="row">bank · 1</th><td>0.9778</td><td>1.0222</td></tr></tbody></table></div>
+          </div>
+          <pre id="step-example">First token (river): [1, 0] + [1, 0] = [2, 0]</pre>
+        </div>
+      </div>
+      <p class="trace-foot">Rows follow token positions 0 and 1. Display values are rounded to four decimal places. “masked” means −∞ before softmax, giving exactly zero attention weight.</p>
+      <noscript><p class="note">JavaScript is disabled. The table above shows the default causal calculation with positions for “river bank”. The notebook contains the complete walkthrough.</p></noscript>
+      <div class="two insights">
+        <article><h3>Fixed weights ≠ fixed queries.</h3><p>The matrices stay fixed in this exercise. A query is still computed from a token’s input. “river” at position 0 starts as <code>[1, 0]</code>; at position 1 it starts as <code>[1.25, −0.25]</code>. Its query therefore changes from <code>[0]</code> to <code>[−0.25]</code>.</p></article>
+        <article><h3>Order enters in two different ways.</h3><p>Position vectors encode where a token occurs. A causal mask reveals which tokens it may read. With both switches off, swapping the words simply reorders the outputs. With the causal mask on, swapping can change the outputs even without position vectors.</p></article>
+      </div>
+      <details><summary>The model’s complete fixed parameters</summary><pre>Word embeddings:  river = [1, 0]      bank = [0, 1]
+Position vectors: position 0 = [0, 0]  position 1 = [0.25, -0.25]
+
+W_Q = [[0], [1]]                 → query selects coordinate 2
+W_K = [[1], [0]]                 → key selects coordinate 1
+W_V = [[1, 0], [0, 1]]           → values keep both coordinates
+W_O = [[1, 0], [0, 1]]           → output projection is the identity
+
+Query/key dimension = 1, so the score divisor √1 is 1.
+The two embedding coordinates are artificial numbers, not named meanings.</pre></details>
+    </section>
+
+    <section id="next">
+      <div class="section-top"><span class="section-no">05 /</span><h2>The next concrete task.</h2></div>
+      <div class="two">
+        <article class="next-card">
+          <div class="eyebrow">Add one operation</div>
+          <h3>Layer normalization.</h3>
+          <p>For each token separately, find the mean and variance across its vector’s coordinates. Center the coordinates around zero, then scale by the standard deviation.</p>
+          <pre class="formula">μ = mean(x)
+variance = mean((x − μ)²)
+normalized = γ × (x − μ) / √(variance + ε) + β</pre>
+          <p class="worked">A simple teaching choice is γ = 1 and β = 0. For the current first-token result <code>[2, 0]</code>, the mean is 1 and variance is 1, so the result is <code>[1, −1] / √(1 + ε)</code>. A small positive ε prevents division by zero. This operation is planned; it is not in the model yet.</p>
+        </article>
+        <div class="remaining">
+          <ol>
+            <li><b>Add normalization and expose its values.</b><span>Return mean, variance, and normalized output in the trace. Check the result against one hand calculation and a constant vector.</span></li>
+            <li><b>Add a tiny feed-forward network.</b><span>One linear transform, a simple activation, and another linear transform, applied separately to each token.</span></li>
+            <li><b>Add the second skip and normalization.</b><span>Add the feed-forward result to its input, then normalize again.</span></li>
+            <li><b>Produce next-token probabilities.</b><span>Project each token’s final vector into vocabulary scores, then apply a new softmax across the vocabulary.</span></li>
+            <li><b>Finish the walkthrough, then build training.</b><span>Verify a full forward pass by hand. Start the separate PyTorch exercise only after this example is complete.</span></li>
+          </ol>
+        </div>
+      </div>
+      <div class="note"><b>Two softmax operations, two jobs.</b> Attention softmax distributes weight across input tokens. The future vocabulary softmax distributes probability across possible next tokens. The first is already implemented; the second is still missing.</div>
+      <div class="commands">
+        <div class="command"><b>Run the existing tests</b><code>python3 -m unittest discover -s demo -v</code></div>
+        <div class="command"><b>Open the calculation notebook</b><code>jupyter notebook demo/demo.ipynb</code></div>
+      </div>
+    </section>
+
+    <section id="sources">
+      <div class="section-top"><span class="section-no">06 /</span><h2>Where to pick it up.</h2></div>
+      <div class="sources">
+        <div class="source"><a href="demo/tiny_transformer.py">The tested Python model</a><p><code>teaching_model()</code> defines the numbers; <code>FixedSelfAttention.forward()</code> performs the calculation.</p></div>
+        <div class="source"><a href="demo/test_tiny_transformer.py">The six existing tests</a><p>Attention row sums, Q/K with and without positions, causal masking, output projection, and the first skip connection.</p></div>
+        <div class="source"><a href="PROJECT_LEARNING_ROADMAP.md">The current roadmap</a><p>Scope, build order, and completion criteria for the two independent exercises.</p></div>
+        <div class="source"><a href="demo/demo.ipynb">The notebook walkthrough</a><p>Prints the intermediate matrices for both word orders, with and without positions.</p></div>
+      </div>
+    </section>
+  </main>
+  <footer><div class="wrap"><span>Git-backed project snapshot · HEAD <code>a3a1ec5</code> + working changes</span><span>Self-contained page · works offline · snapshot does not auto-update</span></div></footer>
+
+  <script id="trace-data" type="application/json">{"river bank|0|0":{"tokens":["river","bank"],"inputs":[[1.0,0.0],[0.0,1.0]],"queries":[[0.0],[1.0]],"keys":[[1.0],[0.0]],"values":[[1.0,0.0],[0.0,1.0]],"scores":[[0.0,0.0],[1.0,0.0]],"weights":[[0.5,0.5],[0.7310585786300049,0.2689414213699951]],"outputs":[[0.5,0.5],[0.7310585786300049,0.2689414213699951]],"projected_outputs":[[0.5,0.5],[0.7310585786300049,0.2689414213699951]],"residual_outputs":[[1.5,0.5],[0.7310585786300049,1.2689414213699952]]},"river bank|0|1":{"tokens":["river","bank"],"inputs":[[1.0,0.0],[0.0,1.0]],"queries":[[0.0],[1.0]],"keys":[[1.0],[0.0]],"values":[[1.0,0.0],[0.0,1.0]],"scores":[[0.0,null],[1.0,0.0]],"weights":[[1.0,0.0],[0.7310585786300049,0.2689414213699951]],"outputs":[[1.0,0.0],[0.7310585786300049,0.2689414213699951]],"projected_outputs":[[1.0,0.0],[0.7310585786300049,0.2689414213699951]],"residual_outputs":[[2.0,0.0],[0.7310585786300049,1.2689414213699952]]},"river bank|1|0":{"tokens":["river","bank"],"inputs":[[1.0,0.0],[0.25,0.75]],"queries":[[0.0],[0.75]],"keys":[[1.0],[0.25]],"values":[[1.0,0.0],[0.25,0.75]],"scores":[[0.0,0.0],[0.75,0.1875]],"weights":[[0.5,0.5],[0.6370307944803831,0.3629692055196168]],"outputs":[[0.625,0.375],[0.7277730958602874,0.2722269041397126]],"projected_outputs":[[0.625,0.375],[0.7277730958602874,0.2722269041397126]],"residual_outputs":[[1.625,0.375],[0.9777730958602874,1.0222269041397127]]},"river bank|1|1":{"tokens":["river","bank"],"inputs":[[1.0,0.0],[0.25,0.75]],"queries":[[0.0],[0.75]],"keys":[[1.0],[0.25]],"values":[[1.0,0.0],[0.25,0.75]],"scores":[[0.0,null],[0.75,0.1875]],"weights":[[1.0,0.0],[0.6370307944803831,0.3629692055196168]],"outputs":[[1.0,0.0],[0.7277730958602874,0.2722269041397126]],"projected_outputs":[[1.0,0.0],[0.7277730958602874,0.2722269041397126]],"residual_outputs":[[2.0,0.0],[0.9777730958602874,1.0222269041397127]]},"bank river|0|0":{"tokens":["bank","river"],"inputs":[[0.0,1.0],[1.0,0.0]],"queries":[[1.0],[0.0]],"keys":[[0.0],[1.0]],"values":[[0.0,1.0],[1.0,0.0]],"scores":[[0.0,1.0],[0.0,0.0]],"weights":[[0.2689414213699951,0.7310585786300049],[0.5,0.5]],"outputs":[[0.7310585786300049,0.2689414213699951],[0.5,0.5]],"projected_outputs":[[0.7310585786300049,0.2689414213699951],[0.5,0.5]],"residual_outputs":[[0.7310585786300049,1.2689414213699952],[1.5,0.5]]},"bank river|0|1":{"tokens":["bank","river"],"inputs":[[0.0,1.0],[1.0,0.0]],"queries":[[1.0],[0.0]],"keys":[[0.0],[1.0]],"values":[[0.0,1.0],[1.0,0.0]],"scores":[[0.0,null],[0.0,0.0]],"weights":[[1.0,0.0],[0.5,0.5]],"outputs":[[0.0,1.0],[0.5,0.5]],"projected_outputs":[[0.0,1.0],[0.5,0.5]],"residual_outputs":[[0.0,2.0],[1.5,0.5]]},"bank river|1|0":{"tokens":["bank","river"],"inputs":[[0.0,1.0],[1.25,-0.25]],"queries":[[1.0],[-0.25]],"keys":[[0.0],[1.25]],"values":[[0.0,1.0],[1.25,-0.25]],"scores":[[0.0,1.25],[0.0,-0.3125]],"weights":[[0.22270013882530884,0.7772998611746911],[0.5774953651858118,0.42250463481418826]],"outputs":[[0.9716248264683638,0.028375173531636072],[0.5281307935177353,0.4718692064822647]],"projected_outputs":[[0.9716248264683638,0.028375173531636072],[0.5281307935177353,0.4718692064822647]],"residual_outputs":[[0.9716248264683638,1.028375173531636],[1.7781307935177353,0.2218692064822647]]},"bank river|1|1":{"tokens":["bank","river"],"inputs":[[0.0,1.0],[1.25,-0.25]],"queries":[[1.0],[-0.25]],"keys":[[0.0],[1.25]],"values":[[0.0,1.0],[1.25,-0.25]],"scores":[[0.0,null],[0.0,-0.3125]],"weights":[[1.0,0.0],[0.5774953651858118,0.42250463481418826]],"outputs":[[0.0,1.0],[0.5281307935177353,0.4718692064822647]],"projected_outputs":[[0.0,1.0],[0.5281307935177353,0.4718692064822647]],"residual_outputs":[[0.0,2.0],[1.7781307935177353,0.2218692064822647]]}}</script>
+  <script>
+    (() => {
+      'use strict';
+      const traces = JSON.parse(document.getElementById('trace-data').textContent);
+      const order = document.getElementById('order');
+      const positions = document.getElementById('positions');
+      const causal = document.getElementById('causal');
+      const buttons = Array.from(document.querySelectorAll('[data-step]'));
+      const stages = [
+        { title: 'Combine words and positions.', symbol: 'X', copy: 'Look up a two-number vector for each word. If positions are enabled, add the vector for position 0 or 1. This is the input used by every projection.', formula: 'X_i = word_embedding(token_i) + position_embedding(i)', fields: [['inputs', 'Input X']] },
+        { title: 'Make queries, keys, and values.', symbol: 'Q · K · V', copy: 'Each input passes through three fixed matrices. Here the query selects coordinate 2, the key selects coordinate 1, and the value keeps both. Queries and keys determine weights; values carry the information that gets mixed.', formula: 'Q = X @ W_Q     K = X @ W_K     V = X @ W_V', fields: [['queries', 'Queries Q'], ['keys', 'Keys K'], ['values', 'Values V']] },
+        { title: 'Compare queries with keys.', symbol: 'QKᵀ / √d_k', copy: 'Each row compares one token’s query with both keys. Larger scores receive more attention weight after softmax. With the causal mask on, a token cannot read a later token. The key dimension is 1, so dividing by √1 leaves the numbers unchanged.', formula: 'score_ij = dot(Q_i, K_j) / √1\nIf causal and j > i: score_ij = −∞', fields: [['scores', 'Scaled scores after optional mask']] },
+        { title: 'Turn scores into mixing weights.', symbol: 'softmax(scores)', copy: 'Apply softmax separately to each score row. The two weights in a row sum to 1. A masked score receives exactly zero weight. These weights are over input tokens, not over possible next words.', formula: 'weight_ij = exp(score_ij − row_max) / Σ_k exp(score_ik − row_max)', fields: [['weights', 'Attention weights']] },
+        { title: 'Mix the value vectors.', symbol: 'weights @ V', copy: 'For each token, multiply each value vector by its attention weight and add the results. This gathers information from the tokens that the mask allows it to read.', formula: 'attention_i = weight_i0 × V_0 + weight_i1 × V_1', fields: [['outputs', 'Attention output']] },
+        { title: 'Project the attention output.', symbol: 'attention @ W_O', copy: 'W_O is the attention output matrix. It transforms the mixed value vector before the skip connection. We chose the identity matrix, so this example’s numbers stay the same. A different W_O would change them.', formula: 'projected_attention = attention @ [[1, 0], [0, 1]]', fields: [['outputs', 'Before projection'], ['projected_outputs', 'After projection']] },
+        { title: 'Add the original input back.', symbol: 'X + attention @ W_O', copy: 'The skip connection preserves a direct path from the original input. Attention adds information to that input instead of replacing it. This is the last operation currently implemented.', formula: 'residual = X + projected_attention', fields: [['residual_outputs', 'After first skip connection']] }
+      ];
+      let selected = 6;
+      const fmt = value => value === null ? 'masked' : Number(value.toFixed(4)).toString();
+      const vec = values => '[' + values.map(fmt).join(', ') + ']';
+
+      function element(tag, text) {
+        const node = document.createElement(tag);
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+
+      function matrix(trace, field, caption) {
+        const wrapper = element('div');
+        wrapper.className = 'matrix';
+        const table = element('table');
+        table.appendChild(element('caption', caption));
+        const head = element('thead');
+        const header = element('tr');
+        const first = element('th', 'Token');
+        first.scope = 'col';
+        header.appendChild(first);
+        const overTokens = field === 'scores' || field === 'weights';
+        trace[field][0].forEach((_, index) => {
+          const cell = element('th', overTokens ? trace.tokens[index] + ' · ' + index : 'dim ' + (index + 1));
+          cell.scope = 'col';
+          header.appendChild(cell);
+        });
+        head.appendChild(header);
+        table.appendChild(head);
+        const body = element('tbody');
+        trace[field].forEach((values, index) => {
+          const row = element('tr');
+          const label = element('th', trace.tokens[index] + ' · ' + index);
+          label.scope = 'row';
+          row.appendChild(label);
+          values.forEach(value => {
+            const cell = element('td', fmt(value));
+            if (value === null) cell.className = 'masked';
+            row.appendChild(cell);
+          });
+          body.appendChild(row);
+        });
+        table.appendChild(body);
+        wrapper.appendChild(table);
+        return wrapper;
+      }
+
+      function example(trace) {
+        const prefix = 'First token (' + trace.tokens[0] + '): ';
+        switch (selected) {
+          case 0: {
+            const word = trace.tokens[0] === 'river' ? [1, 0] : [0, 1];
+            return prefix + vec(word) + ' + [0, 0] = ' + vec(trace.inputs[0]) + '\nAt position 0, the position vector is zero. Check the second row to see the effect of the position switch.';
+          }
+          case 1: return prefix + vec(trace.inputs[0]) + ' → Q = ' + vec(trace.queries[0]) + ', K = ' + vec(trace.keys[0]) + ', V = ' + vec(trace.values[0]);
+          case 2: return prefix + 'score against itself = ' + fmt(trace.queries[0][0]) + ' × ' + fmt(trace.keys[0][0]) + ' = ' + fmt(trace.scores[0][0]) + '\nScore against the next token: ' + fmt(trace.scores[0][1]) + (causal.checked ? ' (future token is hidden).' : ' (future token is visible).');
+          case 3: return prefix + vec(trace.scores[0]) + ' → ' + vec(trace.weights[0]) + '\nThe second token’s weights are ' + vec(trace.weights[1]) + '.';
+          case 4: return prefix + fmt(trace.weights[0][0]) + ' × ' + vec(trace.values[0]) + ' + ' + fmt(trace.weights[0][1]) + ' × ' + vec(trace.values[1]) + ' = ' + vec(trace.outputs[0]);
+          case 5: return prefix + vec(trace.outputs[0]) + ' @ identity = ' + vec(trace.projected_outputs[0]);
+          case 6: return prefix + vec(trace.inputs[0]) + ' + ' + vec(trace.projected_outputs[0]) + ' = ' + vec(trace.residual_outputs[0]);
+        }
+      }
+
+      function render() {
+        const trace = traces[order.value + '|' + Number(positions.checked) + '|' + Number(causal.checked)];
+        const stage = stages[selected];
+        document.getElementById('step-title').textContent = stage.title;
+        document.getElementById('step-symbol').textContent = stage.symbol;
+        document.getElementById('step-copy').textContent = stage.copy;
+        document.getElementById('step-formula').textContent = stage.formula;
+        const container = document.getElementById('matrices');
+        container.replaceChildren(...stage.fields.map(([field, caption]) => matrix(trace, field, caption)));
+        document.getElementById('step-example').textContent = example(trace);
+        buttons.forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.step) === selected)));
+      }
+
+      buttons.forEach(button => button.addEventListener('click', () => { selected = Number(button.dataset.step); render(); }));
+      [order, positions, causal].forEach(control => control.addEventListener('change', render));
+      render();
+    })();
+  </script>
+</body>
+</html>

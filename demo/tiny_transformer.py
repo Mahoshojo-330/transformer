@@ -1,7 +1,8 @@
-"""A tiny, dependency-free self-attention implementation for learning.
+"""Tiny, dependency-free transformer calculations for learning.
 
-This intentionally implements one attention head, not a production transformer.
-All intermediate values are returned so they can be checked by hand.
+This currently implements one attention head, its output projection, and the
+first residual connection. All intermediate values are returned so they can be
+checked by hand.
 """
 
 from __future__ import annotations
@@ -60,10 +61,12 @@ class AttentionTrace:
     scores: Matrix
     weights: Matrix
     outputs: Matrix
+    projected_outputs: Matrix
+    residual_outputs: Matrix
 
 
 class FixedSelfAttention:
-    """One self-attention head whose embeddings and matrices are fixed.
+    """One self-attention sublayer whose embeddings and matrices are fixed.
 
     "Fixed" refers to the parameters. Queries, keys, and values are still
     calculated from each token's content-plus-position input.
@@ -76,12 +79,14 @@ class FixedSelfAttention:
         w_query: Matrix,
         w_key: Matrix,
         w_value: Matrix,
+        w_output: Matrix,
     ) -> None:
         self.embeddings = embeddings
         self.positions = positions
         self.w_query = w_query
         self.w_key = w_key
         self.w_value = w_value
+        self.w_output = w_output
 
     def forward(
         self,
@@ -126,6 +131,14 @@ class FixedSelfAttention:
             weights.append(attention_weights)
             outputs.append(output)
 
+        projected_outputs = [
+            transform(output, self.w_output) for output in outputs
+        ]
+        residual_outputs = [
+            add(inputs[index], output)
+            for index, output in enumerate(projected_outputs)
+        ]
+
         return AttentionTrace(
             tokens=list(tokens),
             inputs=inputs,
@@ -135,6 +148,8 @@ class FixedSelfAttention:
             scores=scores,
             weights=weights,
             outputs=outputs,
+            projected_outputs=projected_outputs,
+            residual_outputs=residual_outputs,
         )
 
 
@@ -156,4 +171,6 @@ def teaching_model() -> FixedSelfAttention:
         w_key=[[1.0], [0.0]],
         # Values retain both input coordinates.
         w_value=[[1.0, 0.0], [0.0, 1.0]],
+        # W_O is an identity matrix, so the extra step stays easy to inspect.
+        w_output=[[1.0, 0.0], [0.0, 1.0]],
     )

@@ -28,6 +28,26 @@ class FixedSelfAttentionTests(unittest.TestCase):
         trace = self.model.forward(["river", "bank"], causal=True)
         self.assertEqual(trace.weights[0][1], 0.0)
 
+    def test_output_projection_uses_w_output(self) -> None:
+        self.model.w_output = [[0.0, 1.0], [1.0, 0.0]]
+
+        trace = self.model.forward(
+            ["river", "bank"], use_positions=False, causal=True
+        )
+
+        projected_outputs = getattr(trace, "projected_outputs", None)
+        self.assertIsNotNone(projected_outputs)
+        self.assertEqual(projected_outputs[0], [0.0, 1.0])
+
+    def test_residual_adds_original_input_to_projected_output(self) -> None:
+        self.model.w_output = [[0.0, 1.0], [1.0, 0.0]]
+
+        trace = self.model.forward(
+            ["river", "bank"], use_positions=False, causal=True
+        )
+
+        self.assertEqual(trace.residual_outputs[0], [1.0, 1.0])
+
 
 if __name__ == "__main__":
     unittest.main()
